@@ -31,6 +31,7 @@ export function useResources(options?: UseResources) {
                 return [...resources, ...old];
             }
         );
+        queryClient.invalidateQueries({ queryKey: ["resources"] });
     }
 
     return {
