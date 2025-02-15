@@ -118,7 +118,7 @@ const MediaViewer = ({ resource }: { resource: { id: string; width: number; heig
         <SheetContent
           ref={sheetFiltersRef}
           className="w-full sm:w-3/4 grid grid-rows-[1fr_auto] bg-zinc-800 text-white border-0"
-          data-exclude-close-on-click={true}
+           data-exclude-close-on-click={true}
         >
           <Tabs defaultValue="account">
             <TabsList className="grid grid-cols-3 w-full bg-transparent p-0">
