@@ -9,7 +9,9 @@ import {
 } from "next-cloudinary";
 
 const UploadButton = () => {
-    const { addResources } = useResources();
+    const { addResources } = useResources({
+        disableFetch: true,
+    });
 
     function handleOnSuccess(results: CloudinaryUploadWidgetResults) {
         addResources([results.info as CloudinaryResource]);
@@ -19,6 +21,7 @@ const UploadButton = () => {
         <CldUploadButton
             options={{
                 autoMinimize: true,
+                tags: [String(process.env.NEXT_PUBLIC_CLOUDINARY_LIBRARY_TAG)],
             }}
             signatureEndpoint="/api/sign-cloudinary-params"
             onSuccess={handleOnSuccess}

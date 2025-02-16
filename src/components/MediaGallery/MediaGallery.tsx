@@ -15,10 +15,11 @@ import { useResources } from "@/hooks/use-resources";
 
 interface MediaGalleryProps {
     resources: Array<CloudinaryResource>;
+    tag?: string;
 }
 
-const MediaGallery = ({ resources: initialResources }: MediaGalleryProps) => {
-    const { resources } = useResources({ initialResources });
+const MediaGallery = ({ resources: initialResources, tag }: MediaGalleryProps) => {
+    const { resources } = useResources({ initialResources, tag });
 
     const [selected, setSelected] = useState<Array<string>>([]);
     const [creation, setCreation] = useState();
@@ -173,7 +174,7 @@ const MediaGallery = ({ resources: initialResources }: MediaGalleryProps) => {
                                                         ? "border-blue-500"
                                                         : "border-white"
                                                 }`}
-                                                href="#"
+                                                href={`/resources/${resource.asset_id}`}
                                             >
                                                 <CldImage
                                                     width={resource.width}
