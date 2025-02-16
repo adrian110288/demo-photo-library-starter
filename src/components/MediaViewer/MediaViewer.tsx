@@ -11,7 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { CloudinaryResource } from "@/types/cloudinary";
-import { CldImage, CldImageProps } from "next-cloudinary";
+import { CldImageProps } from "next-cloudinary";
+import { CldImage } from "@/components/CldImage";
 
 interface Deletion {
     state: string;
