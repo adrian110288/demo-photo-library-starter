@@ -11,14 +11,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { CloudinaryResource } from "@/types/cloudinary";
-import { CldImageProps } from "next-cloudinary";
+import { CldImageProps, getCldImageUrl } from "next-cloudinary";
 import { CldImage } from "@/components/CldImage";
+import { transform } from "next/dist/build/swc";
+import { useRouter } from "next/navigation";
 
 interface Deletion {
     state: string;
 }
 
 const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
+    const router = useRouter();
     const sheetFiltersRef = useRef<HTMLDivElement | null>(null);
     const sheetInfoRef = useRef<HTMLDivElement | null>(null);
 
@@ -29,6 +32,8 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
     const [deletion, setDeletion] = useState<Deletion>();
 
     const [enhancements, setEnhancements] = useState<string>();
+    const [crop, setCrop] = useState<string>();
+    const [filter, setFilter] = useState<string>();
 
     type Transformations = Omit<CldImageProps, "src" | "alt">;
 
@@ -42,6 +47,38 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
         transformations.removeBackground = true;
     }
 
+    if (crop == "square") {
+        if (resource.width > resource.height) {
+            transformations.height = resource.width;
+        } else {
+            transformations.width = resource.height;
+        }
+        transformations.crop = {
+            source: true,
+            type: "fill",
+        };
+    } else if (crop == "landscape") {
+        transformations.height = Math.floor(resource.width / (16 / 9));
+        transformations.crop = {
+            source: true,
+            type: "fill",
+        };
+    } else if (crop == "portrait") {
+        transformations.width = Math.floor(resource.height / (16 / 9));
+        transformations.crop = {
+            source: true,
+            type: "fill",
+        };
+    }
+
+    if (typeof filter === "string" && ["grayscale", "sepia"].includes(filter)) {
+        transformations[filter as keyof Transformations] = true;
+    } else if (typeof filter === "string" && ["sizzle"].includes(filter)) {
+        transformations.art = filter;
+    }
+
+    const hasTransformations = Object.entries(transformations).length > 0;
+
     // Canvas sizing based on the image dimensions. The tricky thing about
     // showing a single image in a space like this in a responsive way is trying
     // to take up as much room as possible without distorting it or upscaling
@@ -49,8 +86,8 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
     // determine whether it's landscape, portrait, or square, and change a little
     // CSS to make it appear centered and scalable!
 
-    const canvasHeight = resource.height;
-    const canvasWidth = resource.width;
+    const canvasHeight = transformations.height || resource.height;
+    const canvasWidth = transformations.width || resource.width;
 
     const isSquare = canvasHeight === canvasWidth;
     const isLandscape = canvasWidth > canvasHeight;
@@ -79,6 +116,12 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
         setDeletion(undefined);
     }
 
+    function discardChanges() {
+        setEnhancements(undefined);
+        setCrop(undefined);
+        setFilter(undefined);
+    }
+
     /**
      * handleOnDeletionOpenChange
      */
@@ -88,6 +131,48 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
         if (!isOpen) {
             setDeletion(undefined);
         }
+    }
+
+    async function handleOnSave() {
+        const url = getCldImageUrl({
+            width: resource.width,
+            height: resource.height,
+            src: resource.public_id,
+            format: "default",
+            quality: "default",
+            ...transformations,
+        });
+
+        const results = await fetch("/api/upload", {
+            method: "POST",
+            body: JSON.stringify({
+                publicId: resource.public_id,
+                url,
+            }),
+        });
+
+        closeMenus();
+        discardChanges();
+    }
+
+    async function handleOnSaveCopy() {
+        const url = getCldImageUrl({
+            width: resource.width,
+            height: resource.height,
+            src: resource.public_id,
+            format: "default",
+            quality: "default",
+            ...transformations,
+        });
+
+        const { data } = await fetch("/api/upload", {
+            method: "POST",
+            body: JSON.stringify({
+                url,
+            }),
+        });
+
+        router.push(`/resources/${data.asset_id}`);
     }
 
     // Listen for clicks outside of the panel area and if determined
@@ -252,11 +337,64 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                                 <li>
                                     <Button
                                         variant="ghost"
-                                        className={`text-left justify-start w-full h-14 border-4 bg-zinc-700 border-white`}
+                                        className={`text-left justify-start w-full h-14 border-4 bg-zinc-700 border-white ${
+                                            !crop
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setCrop(undefined)}
                                     >
                                         <Image className="w-5 h-5 mr-3" />
                                         <span className="text-[1.01rem]">
                                             Original
+                                        </span>
+                                    </Button>
+                                </li>
+                                <li>
+                                    <Button
+                                        variant="ghost"
+                                        className={`text-left justify-start w-full h-14 border-4 bg-zinc-700 border-white ${
+                                            crop === "square"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setCrop("square")}
+                                    >
+                                        <Image className="w-5 h-5 mr-3" />
+                                        <span className="text-[1.01rem]">
+                                            Square
+                                        </span>
+                                    </Button>
+                                </li>
+                                <li>
+                                    <Button
+                                        variant="ghost"
+                                        className={`text-left justify-start w-full h-14 border-4 bg-zinc-700 border-white ${
+                                            crop === "landscape"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setCrop("landscape")}
+                                    >
+                                        <Image className="w-5 h-5 mr-3" />
+                                        <span className="text-[1.01rem]">
+                                            Landscape
+                                        </span>
+                                    </Button>
+                                </li>
+                                <li>
+                                    <Button
+                                        variant="ghost"
+                                        className={`text-left justify-start w-full h-14 border-4 bg-zinc-700 border-white ${
+                                            crop === "portrait"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setCrop("portrait")}
+                                    >
+                                        <Image className="w-5 h-5 mr-3" />
+                                        <span className="text-[1.01rem]">
+                                            Portrait
                                         </span>
                                     </Button>
                                 </li>
@@ -271,12 +409,75 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                             <ul className="grid grid-cols-2 gap-2">
                                 <li>
                                     <button
-                                        className={`w-full border-4 border-white`}
+                                        className={`w-full border-4 border-white ${
+                                            !filter
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setFilter(undefined)}
                                     >
-                                        <img
-                                            width={resource.width}
-                                            height={resource.height}
-                                            src="/icon-1024x1024.png"
+                                        <CldImage
+                                            width={156}
+                                            height={156}
+                                            src={resource.public_id}
+                                            crop="fill"
+                                            alt="No Filter"
+                                        />
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        className={`w-full border-4 border-white ${
+                                            filter === "sepia"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setFilter("sepia")}
+                                    >
+                                        <CldImage
+                                            width={156}
+                                            height={156}
+                                            src={resource.public_id}
+                                            crop="fill"
+                                            sepia
+                                            alt="No Filter"
+                                        />
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        className={`w-full border-4 border-white ${
+                                            filter === "sizzle"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setFilter("sizzle")}
+                                    >
+                                        <CldImage
+                                            width={156}
+                                            height={156}
+                                            src={resource.public_id}
+                                            crop="fill"
+                                            art="sizzle"
+                                            alt="No Filter"
+                                        />
+                                    </button>
+                                </li>
+                                <li>
+                                    <button
+                                        className={`w-full border-4 border-white ${
+                                            filter === "grayscale"
+                                                ? "border-white"
+                                                : "border-transparent"
+                                        }`}
+                                        onClick={() => setFilter("grayscale")}
+                                    >
+                                        <CldImage
+                                            width={156}
+                                            height={156}
+                                            src={resource.public_id}
+                                            crop="fill"
+                                            grayscale
                                             alt="No Filter"
                                         />
                                     </button>
@@ -285,43 +486,57 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                         </TabsContent>
                     </Tabs>
                     <SheetFooter className="gap-2 sm:flex-col">
-                        <div className="grid grid-cols-[1fr_4rem] gap-2">
-                            <Button
-                                variant="ghost"
-                                className="w-full h-14 text-left justify-center items-center bg-blue-500"
-                            >
-                                <span className="text-[1.01rem]">Save</span>
-                            </Button>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        className="w-full h-14 text-left justify-center items-center bg-blue-500"
-                                    >
-                                        <span className="sr-only">
-                                            More Options
-                                        </span>
-                                        <ChevronDown className="h-5 w-5" />
-                                    </Button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent
-                                    className="w-56"
-                                    data-exclude-close-on-click={true}
+                        {hasTransformations && (
+                            <div className="grid grid-cols-[1fr_4rem] gap-2">
+                                <Button
+                                    variant="ghost"
+                                    className="w-full h-14 text-left justify-center items-center bg-blue-500"
+                                    onClick={handleOnSave}
                                 >
-                                    <DropdownMenuGroup>
-                                        <DropdownMenuItem>
-                                            <span>Save as Copy</span>
-                                        </DropdownMenuItem>
-                                    </DropdownMenuGroup>
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </div>
+                                    <span className="text-[1.01rem]">Save</span>
+                                </Button>
+                                <DropdownMenu>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            className="w-full h-14 text-left justify-center items-center bg-blue-500"
+                                        >
+                                            <span className="sr-only">
+                                                More Options
+                                            </span>
+                                            <ChevronDown className="h-5 w-5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent
+                                        className="w-56"
+                                        data-exclude-close-on-click={true}
+                                    >
+                                        <DropdownMenuGroup>
+                                            <DropdownMenuItem
+                                                onClick={handleOnSaveAsCopy}
+                                            >
+                                                <span>Save as Copy</span>
+                                            </DropdownMenuItem>
+                                        </DropdownMenuGroup>
+                                    </DropdownMenuContent>
+                                </DropdownMenu>
+                            </div>
+                        )}
                         <Button
                             variant="outline"
-                            className="w-full h-14 text-left justify-center items-center bg-transparent border-zinc-600"
-                            onClick={() => closeMenus()}
+                            className={`w-full h-14 text-left justify-center items-center ${
+                                hasTransformations
+                                    ? "bg-red-400"
+                                    : "bg-transparent"
+                            } border-zinc-600`}
+                            onClick={() => {
+                                closeMenus();
+                                discardChanges();
+                            }}
                         >
-                            <span className="text-[1.01rem]">Close</span>
+                            <span className="text-[1.01rem]">
+                                {hasTransformations ? "Cancel" : "Close"}
+                            </span>
                         </Button>
                     </SheetFooter>
                 </SheetContent>
