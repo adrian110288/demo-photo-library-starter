@@ -9,20 +9,66 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
-import { CldImage } from "next-cloudinary";
+import { CldImage, getCldImageUrl } from "next-cloudinary";
 import { CloudinaryResource } from "@/types/cloudinary";
 import { useResources } from "@/hooks/use-resources";
+import { getCollage } from "@/lib/creations";
+import { create } from "domain";
 
 interface MediaGalleryProps {
     resources: Array<CloudinaryResource>;
     tag?: string;
 }
 
-const MediaGallery = ({ resources: initialResources, tag }: MediaGalleryProps) => {
-    const { resources } = useResources({ initialResources, tag });
+interface Creation {
+    state: string;
+    url: string;
+    type: string;
+}
+
+const MediaGallery = ({
+    resources: initialResources,
+    tag,
+}: MediaGalleryProps) => {
+    const { resources, addResources } = useResources({ initialResources, tag });
 
     const [selected, setSelected] = useState<Array<string>>([]);
-    const [creation, setCreation] = useState();
+    const [creation, setCreation] = useState<Creation>();
+
+    function handleOnCreateCollage() {
+        setCreation({
+            state: "created",
+            url: getCollage(selected),
+            type: "collage",
+        });
+    }
+
+    async function handleOnSaveCreation() {
+        if (!creation) return;
+        if (typeof creation.url !== "string" || creation?.state === "saving")
+            return;
+
+        setCreation((prev) => {
+            if (!prev) return;
+            return {
+                ...prev,
+                state: "saving",
+            };
+        });
+
+        await fetch(creation.url);
+
+        const { data } = await fetch("/api/upload", {
+            method: "POST",
+            body: JSON.stringify({
+                url: creation.url,
+            }),
+        }).then((res) => res.json());
+
+        addResources([data]);
+        setCreation(undefined);
+        setSelected([]);
+    }
 
     /**
      * handleOnClearSelection
@@ -51,8 +97,23 @@ const MediaGallery = ({ resources: initialResources, tag }: MediaGalleryProps) =
                     <DialogHeader>
                         <DialogTitle>Save your creation?</DialogTitle>
                     </DialogHeader>
+                    {creation?.url && (
+                        <div>
+                            <CldImage
+                                width={1200}
+                                height={1200}
+                                src={creation.url}
+                                alt=""
+                                crop={{
+                                    type: "fill",
+                                    source: true,
+                                }}
+                                preserveTransformations
+                            />
+                        </div>
+                    )}
                     <DialogFooter className="justify-end sm:justify-end">
-                        <Button>
+                        <Button onClick={handleOnSaveCreation}>
                             <Save className="h-4 w-4 mr-2" />
                             Save to Library
                         </Button>
@@ -95,9 +156,13 @@ const MediaGallery = ({ resources: initialResources, tag }: MediaGalleryProps) =
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent className="w-56">
                                     <DropdownMenuGroup>
-                                        <DropdownMenuItem>
-                                            <span>Option</span>
-                                        </DropdownMenuItem>
+                                        {selected.length > 1 && (
+                                            <DropdownMenuItem
+                                                onClick={handleOnCreateCollage}
+                                            >
+                                                <span>Collage</span>
+                                            </DropdownMenuItem>
+                                        )}
                                     </DropdownMenuGroup>
                                 </DropdownMenuContent>
                             </DropdownMenu>

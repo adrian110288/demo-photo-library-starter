@@ -8,3 +8,5 @@
 - [x] Custom hook useResources for managing, caching, invalidating resources
 - [x] Add tag to upload and resource querying
 - [x] Add enhacements to image viewer
+- [x] Use Ts Record to create upload options
+- [x] Using Hook setter by passing function to it in order to access the preview state. See MediaGallery > handleOnSaveCreation

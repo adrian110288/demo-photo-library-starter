@@ -15,6 +15,7 @@ import { CldImageProps, getCldImageUrl } from "next-cloudinary";
 import { CldImage } from "@/components/CldImage";
 import { transform } from "next/dist/build/swc";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Deletion {
     state: string;
@@ -22,6 +23,8 @@ interface Deletion {
 
 const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
     const router = useRouter();
+    const queryClient = useQueryClient();
+
     const sheetFiltersRef = useRef<HTMLDivElement | null>(null);
     const sheetInfoRef = useRef<HTMLDivElement | null>(null);
 
@@ -150,7 +153,7 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                 url,
             }),
         });
-
+        invalidateQueries();
         closeMenus();
         discardChanges();
     }
@@ -170,13 +173,39 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
             body: JSON.stringify({
                 url,
             }),
-        });
+        }).then((res) => res.json());
+
+        invalidateQueries();
 
         router.push(`/resources/${data.asset_id}`);
     }
 
+    async function handleOnDelete() {
+        await fetch("/api/delete", {
+            method: "POST",
+            body: JSON.stringify({
+                publicId: resource.public_id,
+            }),
+        });
+
+        invalidateQueries();
+
+        router.push(`/`);
+    }
+
+    function invalidateQueries() {
+        queryClient.invalidateQueries({
+            queryKey: [
+                "resources",
+                String(process.env.NEXT_PUBLIC_CLOUDINARY_LIBRARY_TAG),
+            ],
+        });
+    }
+
     // Listen for clicks outside of the panel area and if determined
     // to be outside, close the panel. This is marked by using
+    // a data attribute to provide an easy way to reference it on
+    // multiple elements
     // a data attribute to provide an easy way to reference it on
     // multiple elements
 
@@ -216,7 +245,7 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                         </DialogTitle>
                     </DialogHeader>
                     <DialogFooter className="justify-center sm:justify-center">
-                        <Button variant="destructive">
+                        <Button variant="destructive" onClick={handleOnDelete}>
                             <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </Button>
                     </DialogFooter>
@@ -513,7 +542,7 @@ const MediaViewer = ({ resource }: { resource: CloudinaryResource }) => {
                                     >
                                         <DropdownMenuGroup>
                                             <DropdownMenuItem
-                                                onClick={handleOnSaveAsCopy}
+                                                onClick={handleOnSaveCopy}
                                             >
                                                 <span>Save as Copy</span>
                                             </DropdownMenuItem>
